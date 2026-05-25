@@ -1,0 +1,16 @@
+/* App.css */
+
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Outfit:wght@300;400;500;600;700&display=swap');
+
+@import "tailwindcss";
+
+
+:root {
+  --primary-color: #4F46E5; /* Indigo-600 */
+  --secondary-color: #E0E7FF; /* Indigo-100 */
+  --accent-color: #FBBF24; /* Amber-400 */
+  --background-color: #F9FAFB; /* Gray-50 */
+  --text-color: #111827; /* Gray-900 */
+}
+
+
