@@ -144,28 +144,21 @@ Rules:
 - Be professional
 - Answer only from provided data`;
 
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
         const response =
           await fetch(
-            "https://api.anthropic.com/v1/messages",
+            `${apiUrl}/api/chat`,
             {
               method: "POST",
 
               headers: {
                 "Content-Type":
-                  "application/json",
-                "anthropic-version":
-                  "2023-06-01",
-                "anthropic-dangerous-direct-browser-access": "true"
+                  "application/json"
               },
 
               body: JSON.stringify({
-                model:
-                  "claude-haiku-4-5-20251001",
-
-                max_tokens: 1024,
-
-                system: systemPrompt,
-
+                systemPrompt,
                 messages: [
                   {
                     role: "user",
@@ -183,7 +176,7 @@ Rules:
 
           throw new Error(
             data?.error?.message ||
-            "Anthropic API Error"
+            "API Error"
           );
 
         }
@@ -204,7 +197,7 @@ Rules:
       } catch (error) {
 
         console.error(
-          "Anthropic API Error:",
+          "API Error:",
           error
         );
 
