@@ -12,10 +12,6 @@ import {
   Sparkles
 } from "lucide-react";
 
-const OPENROUTER_API_KEY =
-  import.meta.env
-    .VITE_OPENROUTER_API_KEY;
-
 const EXAMPLE_QUESTIONS = [
   "Which city has the highest collection?",
   "How many approved properties exist?",
@@ -137,59 +133,45 @@ export default function AIChat({
 
       try {
 
-        const prompt = `
-You are an AI assistant for a Property Tax Analytics Dashboard.
+        const systemPrompt = `You are an AI assistant for a Property Tax Analytics Dashboard.
 
 Dataset Analytics:
-${JSON.stringify(
-  analytics,
-  null,
-  2
-)}
-
-User Question:
-${targetQuestion}
+${JSON.stringify(analytics, null, 2)}
 
 Rules:
 - Give short answers
 - Use exact numbers
 - Be professional
-- Answer only from provided data
-`;
+- Answer only from provided data`;
 
         const response =
           await fetch(
-            "https://openrouter.ai/api/v1/chat/completions",
+            "https://api.anthropic.com/v1/messages",
             {
               method: "POST",
 
               headers: {
-                Authorization:
-                  `Bearer ${OPENROUTER_API_KEY}`,
-
                 "Content-Type":
                   "application/json",
-
-                "HTTP-Referer":
-                  "http://localhost:5173",
-
-                "X-Title":
-                  "Property Tax Dashboard"
+                "anthropic-version":
+                  "2023-06-01",
+                "anthropic-dangerous-direct-browser-access": "true"
               },
 
               body: JSON.stringify({
-                model: "z-ai/glm-4.5-air:free",
+                model:
+                  "claude-haiku-4-5-20251001",
 
+                max_tokens: 1024,
 
+                system: systemPrompt,
 
                 messages: [
                   {
                     role: "user",
-                    content: prompt
+                    content: targetQuestion
                   }
-                ],
-
-                temperature: 0.4
+                ]
               })
             }
           );
@@ -197,20 +179,18 @@ Rules:
         const data =
           await response.json();
 
-        console.log(data);
-
         if (!response.ok) {
 
           throw new Error(
             data?.error?.message ||
-            "OpenRouter API Error"
+            "Anthropic API Error"
           );
 
         }
 
         const text =
-          data?.choices?.[0]
-            ?.message?.content ||
+          data?.content?.[0]
+            ?.text ||
           "No response received.";
 
         setMessages((prev) => [
@@ -224,7 +204,7 @@ Rules:
       } catch (error) {
 
         console.error(
-          "OpenRouter Error:",
+          "Anthropic API Error:",
           error
         );
 
