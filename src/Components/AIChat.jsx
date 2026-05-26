@@ -2,14 +2,16 @@ import {
   useState,
   useMemo,
   useRef,
-  useEffect
+  useEffect,
+  useCallback
 } from "react";
 
 import { motion } from "framer-motion";
 
 import {
   Send,
-  Sparkles
+  Sparkles,
+  AlertCircle
 } from "lucide-react";
 
 const EXAMPLE_QUESTIONS = [
@@ -18,6 +20,8 @@ const EXAMPLE_QUESTIONS = [
   "Compare Pune and Delhi",
   "Which city has most rejected properties?"
 ];
+
+const API_TIMEOUT = 30000; // 30 seconds
 
 export default function AIChat({
   filteredData
@@ -31,6 +35,9 @@ export default function AIChat({
 
   const [loading, setLoading] =
     useState(false);
+
+  const [error, setError] =
+    useState(null);
 
   const chatEndRef =
     useRef(null);
@@ -102,121 +109,149 @@ export default function AIChat({
   }, [messages, loading]);
 
   const handleAskAI =
-    async (clickedQuestion) => {
+    useCallback(
+      async (clickedQuestion) => {
 
-      const targetQuestion =
-        (
-          clickedQuestion ||
-          question
-        ).trim();
+        const targetQuestion =
+          (
+            clickedQuestion ||
+            question
+          ).trim();
 
-      if (
-        !targetQuestion ||
-        loading
-      ) {
-        return;
-      }
+        if (
+          !targetQuestion ||
+          loading
+        ) {
+          return;
+        }
 
-      setQuestion("");
+        setQuestion("");
+        setError(null);
+        setLoading(true);
 
-      setLoading(true);
+        const userMessage = {
+          role: "user",
+          text: targetQuestion
+        };
 
-      const userMessage = {
-        role: "user",
-        text: targetQuestion
-      };
+        setMessages((prev) => [
+          ...prev,
+          userMessage
+        ]);
 
-      setMessages((prev) => [
-        ...prev,
-        userMessage
-      ]);
+        try {
 
-      try {
-
-        const systemPrompt = `You are an AI assistant for a Property Tax Analytics Dashboard.
+          const systemPrompt = `You are an AI assistant for a Property Tax Analytics Dashboard.
 
 Dataset Analytics:
 ${JSON.stringify(analytics, null, 2)}
 
 Rules:
-- Give short answers
-- Use exact numbers
-- Be professional
-- Answer only from provided data`;
+- Give short answers (max 2-3 sentences)
+- Use exact numbers from the data
+- Be professional and helpful
+- Only answer based on provided data
+- If data is unavailable, say so clearly`;
 
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+          const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
-        const response =
-          await fetch(
-            `${apiUrl}/api/chat`,
-            {
-              method: "POST",
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT);
 
-              headers: {
-                "Content-Type":
-                  "application/json"
-              },
+          const response =
+            await fetch(
+              `${apiUrl}/api/chat`,
+              {
+                method: "POST",
 
-              body: JSON.stringify({
-                systemPrompt,
-                messages: [
-                  {
-                    role: "user",
-                    content: targetQuestion
-                  }
-                ]
-              })
+                headers: {
+                  "Content-Type":
+                    "application/json"
+                },
+
+                body: JSON.stringify({
+                  systemPrompt,
+                  messages: [
+                    {
+                      role: "user",
+                      content: targetQuestion
+                    }
+                  ]
+                }),
+
+                signal: controller.signal
+              }
+            );
+
+          clearTimeout(timeoutId);
+
+          const data =
+            await response.json();
+
+          if (!response.ok) {
+
+            let errorMessage = "Failed to get AI response";
+
+            if (response.status === 429) {
+              errorMessage = "Too many requests. Please wait a moment.";
+            } else if (response.status === 401) {
+              errorMessage = "Authentication error. Please check configuration.";
+            } else if (data?.error) {
+              errorMessage = data.error;
             }
+
+            throw new Error(errorMessage);
+
+          }
+
+          const text =
+            data?.content?.[0]
+              ?.text ||
+            "No response received.";
+
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: "ai",
+              text
+            }
+          ]);
+
+        } catch (error) {
+
+          let errorMessage = "Failed to fetch AI response";
+
+          if (error.name === 'AbortError') {
+            errorMessage = "Request timeout. Please try again.";
+          } else if (error.message) {
+            errorMessage = error.message;
+          }
+
+          console.error(
+            "Chat Error:",
+            error
           );
 
-        const data =
-          await response.json();
+          setError(errorMessage);
 
-        if (!response.ok) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: "ai",
+              text: `❌ ${errorMessage}`,
+              isError: true
+            }
+          ]);
 
-          throw new Error(
-            data?.error?.message ||
-            "API Error"
-          );
+        } finally {
+
+          setLoading(false);
 
         }
 
-        const text =
-          data?.content?.[0]
-            ?.text ||
-          "No response received.";
-
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: "ai",
-            text
-          }
-        ]);
-
-      } catch (error) {
-
-        console.error(
-          "API Error:",
-          error
-        );
-
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: "ai",
-            text:
-              "Failed to fetch AI response. Please try again."
-          }
-        ]);
-
-      } finally {
-
-        setLoading(false);
-
-      }
-
-    };
+      },
+      [question, loading, analytics]
+    );
 
   return (
     <motion.div
@@ -346,6 +381,35 @@ Rules:
             tax analytics and city
             performance
           </p>
+
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="
+                mt-3
+                flex
+                items-center
+                gap-2
+                p-3
+                bg-red-50
+                border
+                border-red-200
+                rounded-lg
+                text-red-700
+                text-sm
+              "
+            >
+              <AlertCircle size={16} />
+              <span>{error}</span>
+              <button
+                onClick={() => setError(null)}
+                className="ml-auto text-red-500 hover:text-red-700"
+              >
+                ✕
+              </button>
+            </motion.div>
+          )}
 
         </div>
 
@@ -491,6 +555,12 @@ Rules:
                           to-yellow-500
                           text-white
                           border-amber-400
+                        `
+                        : msg.isError
+                        ? `
+                          bg-red-50
+                          text-red-700
+                          border-red-200
                         `
                         : `
                           bg-white/80
