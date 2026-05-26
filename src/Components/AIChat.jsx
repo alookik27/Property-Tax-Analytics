@@ -153,7 +153,7 @@ Rules:
 - Only answer based on provided data
 - If data is unavailable, say so clearly`;
 
-          const apiUrl = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? '' : 'http://localhost:3000');
+          const apiUrl = import.meta.env.VITE_API_URL || '';
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT);
 
